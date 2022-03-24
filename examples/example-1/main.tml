@@ -1,0 +1,20 @@
+html{
+    head{
+        title{Hola Mundo}
+        style!{
+            body {background-color: red;}
+        }
+    }
+    body{
+        [qwdqdqwdqwd]
+        header{
+            nav{
+                a(href:"https://www.google.com.ar" target:"_blank"){
+                    Ir <i>1234</i> \\{a G}oogle
+                }
+            }}
+        div{
+            Hola Cómo estás?\\nespero que bien
+        }
+    }
+}
