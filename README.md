@@ -21,7 +21,7 @@ function body()
 
 window.onload = function()
 {
-    allTmlCode = `
+    let allTmlCode = `
 
 html{
     head{
@@ -36,12 +36,12 @@ html{
 
 `;
  
-let tml = new TinyML(allTmlCode);
+    let tml = new TinyML(allTmlCode);
 
-if(tml.parse())
-    body().innerHTML = tml.html_source;
-else
-    body().innerHTML = tml.description() + "<br>" + tml.code();
+    if(tml.parse())
+        body().innerHTML = tml.html_source;
+    else
+        body().innerHTML = tml.description() + "<br>" + tml.code();
 
 }
 ```
