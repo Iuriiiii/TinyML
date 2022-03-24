@@ -357,6 +357,9 @@ loop:   for(i = 0; i < source_length; i++)
         if(argument)
             argument = ` ${argument}`;
      
+        if(tag === "script")
+            eval(code);
+     
         if(val)
             if((parsedVal = this.process(val)) === false)
                 return false;
