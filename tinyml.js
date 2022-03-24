@@ -18,6 +18,26 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
+/*
+MIT License
+Copyright (c) 2022 Iuriiiii
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+*/
+
 const SPECIAL_CHARS = ['á','é','í','ó','ú','Á','É','Í','Ó','Ú','ñ','Ñ'];
 
 class Utils
@@ -38,6 +58,20 @@ class Utils
             case '&':
                 return "&amp;";
         }
+    }
+    
+    /* https://stackoverflow.com/questions/2592092/executing-script-elements-inserted-with-innerhtml */
+    static setInnerHtml(elm, html)
+    {
+        elm.innerHTML = html;
+        
+        Array.from(elm.querySelectorAll("script")).forEach(oldScript =>
+        {
+            const newScript = document.createElement("script");
+            Array.from(oldScript.attributes).forEach(attr => newScript.setAttribute(attr.name, attr.value));
+            newScript.appendChild(document.createTextNode(oldScript.innerHTML));
+            oldScript.parentNode.replaceChild(newScript, oldScript);
+        });
     }
 }
 
@@ -356,10 +390,7 @@ loop:   for(i = 0; i < source_length; i++)
         
         if(argument)
             argument = ` ${argument}`;
-     
-        if(tag === "script")
-            eval(code);
-     
+        
         if(val)
             if((parsedVal = this.process(val)) === false)
                 return false;
@@ -372,5 +403,13 @@ loop:   for(i = 0; i < source_length; i++)
     parse()
     {
         return (this.html_source = this.process(this.source)) !== false;
+    }
+    
+    parseAndApply(element)
+    {
+        if(this.parse())
+            Utils.setInnerHtml(element,this.html_source);
+        else
+            element.innerHTML = this.description() + "<br><br>" + this.code();
     }
 }
