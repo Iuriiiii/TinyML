@@ -88,7 +88,7 @@ class TinyML
             case TinyML.STATUS_SEPARATOR_EXCPECTED: return `Separator ('[', '{') expected at ${this.#i+1}`;
             case TinyML.STATUS_VALUE_EXPECTED: return `Value of tag expected at ${this.#i+1}`;
             case TinyML.STATUS_EXPECTED_KEY_CLOSURE: return `Expected '}' at ${this.#i+1}`;
-            case TinyML.STATUS_EXPECTED_BRACKET_CLOSURE: return `Expected ']' at ${this.#i+1}`;
+            case TinyML.STATUS_EXPECTED_PARENTHESIS_CLOSURE: return `Expected ')' at ${this.#i+1}`;
             case TinyML.STATUS_BRACKET_OPEN_EXPECTED: return `Expected '['`;
             case TinyML.STATUS_INVALID_STRING_LOCATION: return `Invalid string at ${this.#i+1}`;
             case TinyML.STATUS_INVALID_CHARACTER_AT_LOCATION: return `Invalid character at ${this.#i+1}`;
@@ -155,7 +155,7 @@ loop:   for(i = 0; i < source_length; i++)
                     if(lla > 0)
                         break;
                     
-                    isEscaped = !isEscaped;
+                    isEscaped = !isEscaped
                     
                     if(isEscaped)
                         continue loop;
@@ -183,7 +183,7 @@ loop:   for(i = 0; i < source_length; i++)
                     
                 break;
                 case '!':
-                    if(isString || cor > 0)
+                    if(isString || cor > 0 || lla > 0)
                         break;
                     
                     if(ignore || par > 0)
@@ -323,9 +323,9 @@ loop:   for(i = 0; i < source_length; i++)
             
             //console.info("tag:", tag, "argument:", argument, "val:", val);
             //if(val)
-                //console.info("tag:", tag, "lla:", lla, "par:", par, "argument:", argument, "val:", val);
+            //    console.info("tag:", tag, "lla:", lla, "par:", par, "argument:", argument, "val:", val);
             //else
-                //console.info("tag:", tag, "lla:", lla, "par:", par, "argument:", argument, "code:", code);
+            //    console.info("tag:", tag, "lla:", lla, "par:", par, "argument:", argument, "code:", code);
         }
         
         if(i < source_length)
@@ -340,9 +340,9 @@ loop:   for(i = 0; i < source_length; i++)
         }
         
         if(lla > 0)
-            return this.#error(TinyML.STATUS_EXPECTED_BRACKET_CLOSURE);
-        else if(par > 0)
             return this.#error(TinyML.STATUS_EXPECTED_KEY_CLOSURE);
+        else if(par > 0)
+            return this.#error(TinyML.STATUS_EXPECTED_PARENTHESIS_CLOSURE);
         else if(cor > 0)
             return this.#error(TinyML.STATUS_INFINITE_COMMENT_DETECTED);
         
