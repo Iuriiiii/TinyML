@@ -1,5 +1,5 @@
 ## TinyML
-TinyML is a lightwidth markup language to make web pages.
+TinyML is a lightwidth markup language to design web pages.
 
 ------------
 #### Incluiding on your project
