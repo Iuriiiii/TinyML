@@ -18,26 +18,6 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-/*
-MIT License
-Copyright (c) 2022 Iuriiiii
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-*/
-
 const SPECIAL_CHARS = ['á','é','í','ó','ú','Á','É','Í','Ó','Ú','ñ','Ñ'];
 
 class Utils
@@ -89,6 +69,8 @@ class TinyML
     static STATUS_INVALID_CHARACTER_AT_LOCATION = 9;
     static STATUS_INVALID_ESCAPE_CHARACTER = 10;
     static STATUS_INFINITE_COMMENT_DETECTED = 11;
+    static STATUS_INVALID_KEY_CLOSURE = 12;
+    static STATUS_INVALID_CODE_KEY_CLOSURE = 13;
     
     #i = 0;
     #tag = "";
@@ -101,7 +83,7 @@ class TinyML
         if(typeof(source) != "string")
             throw TinyML.ERROR_INVALID_SOURCE;
         
-        this.html_source = "";
+        this.html = "";
         this.source = source;
         //this.source_length = this.source.length;
         this.status = TinyML.STATUS_SUCCESS;
@@ -122,6 +104,8 @@ class TinyML
             case TinyML.STATUS_SEPARATOR_EXCPECTED: return `Separator ('[', '{') expected at ${this.#i+1}`;
             case TinyML.STATUS_VALUE_EXPECTED: return `Value of tag expected at ${this.#i+1}`;
             case TinyML.STATUS_EXPECTED_KEY_CLOSURE: return `Expected '}' at ${this.#i+1}`;
+            case TinyML.STATUS_INVALID_KEY_CLOSURE: return `Invalid key closure '}' at ${this.#i+1}`;
+            case TinyML.STATUS_INVALID_CODE_KEY_CLOSURE: return `Invalid code key closure '!}' at ${this.#i+1}`;
             case TinyML.STATUS_EXPECTED_PARENTHESIS_CLOSURE: return `Expected ')' at ${this.#i+1}`;
             case TinyML.STATUS_BRACKET_OPEN_EXPECTED: return `Expected '['`;
             case TinyML.STATUS_INVALID_STRING_LOCATION: return `Invalid string at ${this.#i+1}`;
@@ -152,36 +136,29 @@ class TinyML
     {
         return (this.status = status) === TinyML.STATUS_SUCCESS;
     }
-    
+
     process(source)
     {
         if(!source)
             return "";
         
-        let flag = 0;
-        let par = 0;
-        let lla = 0;
-        let cor = 0;
-        let isString = false;
-        let isOutside = true;
-        let val = "";
-        let argument = "";
-        let tag = "";
-        let content = "";
-        let i;
-        let residue = "";
-        let source_length = source.length;
-        let ignore = false;
-        let code = "";
-        let isEscaped = false;
+        let flag =  0, par = 0, lla = 0, cor = 0, isCode = 0,
+        isString = !1, isOutside = !0, val = "", argument = "",
+        tag = "", content = "", i, residue = "",
+        source_length = source.length, ignore = !1,
+        code = "", isEscaped = !1, escapedChar, skipChar ;
         
         //console.info(source);
+        //source = source.trim();
         this.actual_code = source;
         
 loop:   for(i = 0; i < source_length; i++)
         {
             let c = source[i];
             this.#i = i;
+    
+            //if(c === undefined)
+            //    break;
     
             switch(c)
             {
@@ -195,7 +172,7 @@ loop:   for(i = 0; i < source_length; i++)
                         continue loop;
                 break;
                 case '[':
-                    if(isString || isEscaped)
+                    if(isString || isEscaped || isCode > 0)
                         break;
                 
                     if(par === 0 && lla === 0)
@@ -203,7 +180,7 @@ loop:   for(i = 0; i < source_length; i++)
                     
                 break;
                 case ']':
-                    if(isString || isEscaped)
+                    if(isString || isEscaped || isCode > 0)
                         break;
                     
                     if(par === 0 && lla === 0)
@@ -220,11 +197,17 @@ loop:   for(i = 0; i < source_length; i++)
                     if(isString || cor > 0 || lla > 0)
                         break;
                     
-                    if(ignore || par > 0)
+                    if(par > 0)
                         return this.#error(TinyML.STATUS_INVALID_CHARACTER_AT_LOCATION);
                     
-                    if(ignore = lla === 0)
-                        c = '';
+                    if(source[i+1] === '}' && (++i))
+                        isCode--;
+                    
+                    if(isCode < 0)
+                        return this.#error(TinyML.STATUS_INVALID_CHARACTER_AT_LOCATION);
+                    else if(isCode === 0)
+                        break loop;
+                        
                     
                 break;
                 case '>':
@@ -249,7 +232,7 @@ loop:   for(i = 0; i < source_length; i++)
                 break;
                 case ' ':
                 case '\t':
-                    if(isString || cor > 0 || !isOutside)
+                    if(isString || cor > 0 || !isOutside || isCode > 0 || lla > 0)
                         break;
                     
                     if(tag)
@@ -270,71 +253,65 @@ loop:   for(i = 0; i < source_length; i++)
                     
                 break;
                 case '(':
-                    if(isString || cor > 0)
+                    if(isString || cor > 0 || lla > 0 || isCode > 0)
                         break;
                     
-                    if(lla === 0)
-                        par++;
+                    par++;
                     
                     if(par === 1)
                         c = '';
                     
                 break;
                 case ')':
-                    if(isString || cor > 0)
+                    if(isString || cor > 0 || lla > 0 || isCode > 0)
                         break;
                     
-                    if(lla === 0)
-                    {
-                        par--;
-                        
-                        if(par === 0)
-                            c = '';
-                    }
+                    par--;
                     
-                    if(par < 0)
+                    if(par === 0)
+                        c = '';
+                    else if(par < 0)
                         return this.#error(TinyML.STATUS_BRACKET_OPEN_EXPECTED);
                     
                 break;
                 case '{':
-                    if(isString || cor > 0 || isEscaped)
+                    if(isString || cor > 0 || par > 0 || isCode > 0 || isEscaped)
                         break;
                     
-                    if(par === 0)
-                        lla++;
+                    if(!tag)
+                        return this.#error(TinyML.STATUS_TAG_EXCPECTED);
+                    
+                    lla++;
                     
                     if(lla === 1)
-                        c = '';
-                    
+                        if(((c = '') === '') && source[i+1] === '!' && (++i) && lla--)
+                            isCode++;
                 break;
                 case '}':
-                    if(isString || cor > 0 || isEscaped)
+                    if(isString || cor > 0 || par > 0 || isEscaped || isCode)
                         break;
                     
-                    if(par === 0)
-                        lla--;
+                    lla--;
                     
                     if(lla === 0)
-                    {
                         if(tag)
                             break loop;
                         else
                             c = '';
-                        
-                        ignore = false;
-                    }
+                    else if(lla < 0)
+                        return this.#error(TinyML.STATUS_INVALID_KEY_CLOSURE);
                     
                 break;
             }
             
-            isOutside = (lla === 0) && (par === 0) && (cor === 0) && (isString === false);
+            isOutside = (lla === 0) && (par === 0) && (cor === 0) && (isCode === 0) && (isString === false);
             
             if(cor > 0)
                 continue;
             
             if(isEscaped)
             {
-                let escapedChar = this.#escapeTml(c);
+                escapedChar = this.#escapeTml(c);
                 
                 if(!escapedChar)
                     return this.#error(TinyML.STATUS_INVALID_ESCAPE_CHARACTER);
@@ -344,23 +321,27 @@ loop:   for(i = 0; i < source_length; i++)
             }
             else if(isOutside)
                 tag += c;
-            else if(par > 0 && tag)
-                argument += c;
-            else if (lla > 0 && tag)
-                if(!ignore)
-                    val += c;
-                else
+            else if(tag)
+            {
+                if(par > 0)
+                    argument += c;
+                else if(isCode > 0)
                     code += c;
+                else if (lla > 0)
+                    val += c;
+            }
             else
                 content += c;
                 
             
             //console.info("tag:", tag, "argument:", argument, "val:", val);
             //if(val)
-            //    console.info("tag:", tag, "lla:", lla, "par:", par, "argument:", argument, "val:", val);
+            //    console.info("tag:", tag, "c", c, "i:", i, "isCode:", isCode, "lla:", lla, "par:", par, "argument:", argument, "val:", val);
             //else
-            //    console.info("tag:", tag, "lla:", lla, "par:", par, "argument:", argument, "code:", code);
+            //    console.info("tag:", tag, "c", c, "i:", i, "isCode:", isCode, "lla:", lla, "par:", par, "argument:", argument, "code:", code);
         }
+        
+        //console.log("te tagÇ>>>>>>>>>>>>>>>>>>>>", tag);
         
         if(i < source_length)
             residue = source.substring(i+1);
@@ -402,13 +383,13 @@ loop:   for(i = 0; i < source_length; i++)
     
     parse()
     {
-        return (this.html_source = this.process(this.source)) !== false;
+        return (this.html = this.process(this.source)) !== false;
     }
     
     parseAndApply(element)
     {
         if(this.parse())
-            Utils.setInnerHtml(element,this.html_source);
+            Utils.setInnerHtml(element,this.html);
         else
             element.innerHTML = this.description() + "<br><br>" + this.code();
     }
