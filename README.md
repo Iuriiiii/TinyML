@@ -70,23 +70,23 @@ div(class="myclassname"){
 ```
 If instead you want to put HTML code or another one you just need to use the exclamation char:
 ```c
-div(class="myclassname")!{
+div(class="myclassname"){!
 	<img src="something.jpg"/>
-}
+!}
 ```
 This is usefull to style or script tags:
 ```c
-style!{
+style{!
 	body{
 		background-color: red;
 	}
-}
+!}
 
-script!{
+script{!
 	function min(a,b) {
 		return a > b? b : a;
 	}
-}
+!}
 ```
 
 To put comments inside of TinyML code, you will use the square brackets:
