@@ -22,10 +22,12 @@ const SPECIAL_CHARS = ['á','é','í','ó','ú','Á','É','Í','Ó','Ú','ñ','�
 
 class Utils
 {
+    /*
     static isBetween(a,b,c)
     {
         return a >= b && a <= c;
     }
+    */
     
     static escapeHtml(c)
     {
@@ -53,10 +55,24 @@ class Utils
             oldScript.parentNode.replaceChild(newScript, oldScript);
         });
     }
+    
+    /* https://stackoverflow.com/questions/384286/how-do-you-check-if-a-javascript-object-is-a-dom-object */
+    static isElement(obj)
+    {
+        try
+        {
+            return obj instanceof HTMLElement;
+        }
+        catch(e)
+        {
+            return (typeof obj==="object") && (obj.nodeType===1) && (typeof obj.style === "object") && (typeof obj.ownerDocument ==="object");
+        }
+    }
 }
 
 class TinyML
 {
+    /* SHOULD BE UNMODIFICABLE */
     static STATUS_SUCCESS = 0;
     static ERROR_INVALID_SOURCE = 1;
     static STATUS_TAG_EXCPECTED = 2;
@@ -71,21 +87,16 @@ class TinyML
     static STATUS_INFINITE_COMMENT_DETECTED = 11;
     static STATUS_INVALID_KEY_CLOSURE = 12;
     static STATUS_INVALID_CODE_KEY_CLOSURE = 13;
+    static STATUS_EXPECTED_CODE_KEY_CLOSURE = 14;
+    static TAG_PRE_PARSE = [];
+    static TAG_POST_PARSE = [];
     
     #i = 0;
-    #tag = "";
-    #value = "";
-    #argument = "";
-    #valueCaptureStart = 0;
     
     constructor(source)
     {
-        if(typeof(source) != "string")
-            throw TinyML.ERROR_INVALID_SOURCE;
-        
-        this.html = "";
         this.source = source;
-        //this.source_length = this.source.length;
+        this.html = "";
         this.status = TinyML.STATUS_SUCCESS;
         this.actual_code = "";
     }
@@ -112,6 +123,7 @@ class TinyML
             case TinyML.STATUS_INVALID_CHARACTER_AT_LOCATION: return `Invalid character at ${this.#i+1}`;
             case TinyML.STATUS_INVALID_ESCAPE_CHARACTER: return `Invalid escaped character at ${this.#i+1}`;
             case TinyML.STATUS_INFINITE_COMMENT_DETECTED: return "Endless comment";
+            case TinyML.STATUS_EXPECTED_CODE_KEY_CLOSURE: return `Expected '!}' at ${this.#i+1}`;
             default: return "Unknown reason O.o";
         }
     }
@@ -146,7 +158,7 @@ class TinyML
         isString = !1, isOutside = !0, val = "", argument = "",
         tag = "", content = "", i, residue = "",
         source_length = source.length, ignore = !1,
-        code = "", isEscaped = !1, escapedChar, skipChar ;
+        code = "", isEscaped = !1, escapedChar, skipChar, parsedResidue,tagContent;
         
         //console.info(source);
         //source = source.trim();
@@ -360,11 +372,12 @@ loop:   for(i = 0; i < source_length; i++)
             return this.#error(TinyML.STATUS_EXPECTED_PARENTHESIS_CLOSURE);
         else if(cor > 0)
             return this.#error(TinyML.STATUS_INFINITE_COMMENT_DETECTED);
+        else if(isCode > 0)
+            return this.#error(TinyML.STATUS_EXPECTED_CODE_KEY_CLOSURE);
+            
         
         if(!tag)
             return content + residue;
-        
-        let parsedResidue, parsedVal;
         
         if((parsedResidue = this.process(residue)) === false)
             return false;
@@ -372,25 +385,64 @@ loop:   for(i = 0; i < source_length; i++)
         if(argument)
             argument = ` ${argument}`;
         
-        if(val)
-            if((parsedVal = this.process(val)) === false)
-                return false;
-            else
-                return `${content}<${tag}${argument}>${parsedVal}</${tag}>${parsedResidue}`;
+        tagContent = val || code;
+        let pre_parse_data = [], post_parse_data = [];
+        
+        if(typeof(TinyML.TAG_PRE_PARSE[tag]) === "function")
+            pre_parse_data = TinyML.TAG_PRE_PARSE[tag](content, tag, argument, tagContent, parsedResidue);
+        
 
-        return `${content}<${tag}${argument}>${code}</${tag}>${parsedResidue}`;
+        tagContent = pre_parse_data["tag_content"] || tagContent;
+        tag = pre_parse_data["tag"] || tag;
+        argument = pre_parse_data["arguments"] || argument;
+        content = pre_parse_data["content"] || content;
+        parsedResidue = pre_parse_data["residue"] || parsedResidue;
+        
+        if(val)
+            tagContent = this.process(tagContent)
+        
+        if(typeof(TinyML.TAG_POST_PARSE[tag]) === "function")
+            post_parse_data = TinyML.TAG_POST_PARSE[tag](content, tag, argument, tagContent , parsedResidue);
+
+        tagContent = post_parse_data["tag_content"] || tagContent;
+        tag = post_parse_data["tag"] || tag;
+        argument = post_parse_data["arguments"] || argument;
+        content = post_parse_data["content"] || content;
+        parsedResidue = post_parse_data["residue"] || parsedResidue;
+
+        return tagContent === false ? false : `${content}<${tag}${argument}>${tagContent}</${tag}>${parsedResidue}`;
     }
     
-    parse()
+    parse(source, element)
     {
-        return (this.html = this.process(this.source)) !== false;
+        if(Utils.isElement(source) && (element = source) && (source = this.source));
+        
+        let status = (this.html = this.process(source)) !== false;
+        let html = status ? this.html : this.description() + "<br><hr><br>" + this.code();
+        
+        if(typeof(element) === "object" && element.innerHTML !== undefined)
+            Utils.setInnerHtml(element, html);
+        
+        return this;
     }
-    
-    parseAndApply(element)
-    {
-        if(this.parse())
-            Utils.setInnerHtml(element,this.html);
-        else
-            element.innerHTML = this.description() + "<br><br>" + this.code();
-    }
+}
+
+TinyML.TAG_POST_PARSE["xhtml"] = function(content, tag, argument, tag_content, end)
+{
+    return {content: `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">\n`, tag: "html"};
+}
+
+TinyML.TAG_POST_PARSE["html4"] = function(content, tag, argument, tag_content, end)
+{
+    return {content: `<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">\n`, tag: "html"};
+}
+
+TinyML.TAG_POST_PARSE["html5"] = function(content, tag, argument, tag_content, end)
+{
+    return {content: "<!DOCTYPE html>\n", tag: "html"};
+}
+
+String.prototype.tinyML = function(element)
+{
+    return new TinyML(this + "");
 }
