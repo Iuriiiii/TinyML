@@ -68,7 +68,7 @@ div(class="myclassname"){
 	img(src="something.jpg"){}
 }
 ```
-If instead you want to put HTML code or another one you just need to use the exclamation char:
+If instead you want to put HTML code or another one, you just need to use the exclamation char:
 ```c
 div(class="myclassname"){!
 	<img src="something.jpg"/>
