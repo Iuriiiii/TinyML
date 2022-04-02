@@ -1,9 +1,9 @@
 html{
     head{
         title{Hola Mundo}
-        style!{
+        style{!
             body {background-color: red;}
-        }
+        !}
     }
     body{
         [qwdqdqwdqwd]

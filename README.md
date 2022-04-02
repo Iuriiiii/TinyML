@@ -11,7 +11,7 @@ This project is a newborn chick, Try it at your own risk:
 ```
 
 #### Incluiding on your project
-You should create a new TinyML object with the source to parse, check the parse and put the result in the main window object.
+You can create a TinyML object directly from a string containing the TinyML code has you can see in the following example:
 
 ```javascript
 function body()
@@ -21,28 +21,16 @@ function body()
 
 window.onload = function()
 {
-    let allTmlCode = `
-
-html{
-    head{
-        title{The title of the webpage}
-    }
-    body{
-        div{
-            Some content
+    `html{
+        head{
+            title{The title of the webpage}
         }
-    }
-}
-
-`;
- 
-    let tml = new TinyML(allTmlCode);
-
-    if(tml.parse())
-        body().innerHTML = tml.html_source;
-    else
-        body().innerHTML = tml.description() + "<br>" + tml.code();
-
+        body{
+            div{
+                Some content
+            }
+        }
+    }`.tinyML().parse(body());
 }
 ```
 
@@ -62,7 +50,7 @@ html{
 }
 ```
 
-If you want to put some argument on a tag, you just need to do:
+If you want to put some argument on the tag, you just need to do:
 ```c
 div(class="myclassname"){
 	img(src="something.jpg"){}
@@ -74,7 +62,7 @@ div(class="myclassname"){!
 	<img src="something.jpg"/>
 !}
 ```
-This is usefull to style or script tags:
+This is usefull for style or script tags:
 ```c
 style{!
 	body{
@@ -88,6 +76,19 @@ script{!
 	}
 !}
 ```
+A tag will be considered as one when is followed by bracers ('{' and '}') or code bracers ('{!' and '!}').
+```c
+thisisatag{}
+thisisatagtoo(){}
+thisisn'tatag andthisneither
+|@#~€¬¬¬{} [This is a tag]
+
+thisisnotatag {}
+```
+A short tag as 'img' need be followed by one of these separators.
+```c
+img(arguments){} [ < the '{}' are required ]
+```
 
 To put comments inside of TinyML code, you will use the square brackets:
 ```c
@@ -97,4 +98,61 @@ div{
 }
 ```
 
-![visitors](https://visitor-badge.laobi.icu/badge?page_id=TinyML)
+#### The little API
+Now, you are able to modify the content of the actual parsed tag before and after the parsing.
+
+You need to create a function with a single argument to modify the tag data, after this you just need to set it in the location of your preference.
+
+```js
+/* The following array contains the functions what will it's be called before the TinyML tag_content parsing */
+TinyML.PRE_PARSE_FUNCTION_OF    = []; /* Pre parser functions */
+
+/* The following array contains the functions what will it's be called after the TinyML tag_content parsing */
+TinyML.POST_PARSE_FUNCTION_OF = []; /* Post parser functions */
+```
+
+Knowing this, if you want to create a function what analize the "div" tag, you need to do:
+```js
+TinyML.PRE_PARSE_FUNCTION_OF["div"] = function(tag_data)
+{
+	/* Do something with the tag_data */
+};
+```
+
+The single argument will be contain all the data of the current parsed tag.
+```js
+/* All the following members can be changed */
+tag_data["content"]        /* The left side content of the tag */
+tag_data["tag"]               /* The current tag */
+tag_data["arguments"]   /* The arguments of the tag */
+tag_data["tag_content"] /* The content of the body of the tag, HTML content if it's getted from TinyML.POST_PARSE_FUNCTION_OF, else TinyML content */
+tag_data["residue"]         /* The content of the right side of the tag */
+tag_data["using_code_bracers"] /* true if the tag is using the code bracers ('{!' and '!}') */
+```
+
+The format is the following (for the non-short tags).
+```js
+`${tag_data.content}<${tag_data.tag}${tag_data.arguments}>${tag_data.tag_content}</${tag_data.tag}>${tag_data.residue}`
+```
+For the short tags the output format is:
+```js
+`${tag_data.content}<${tag_data.tag}${tag_data.arguments}>${tag_data.residue}`
+```
+With all this information you will able to modify the tags of your preference or even implement your own tags.
+
+```js
+TinyML.PRE_PARSE_FUNCTION_OF["rev"] = function(tag_data)
+{
+	tag_data.tag_content = tag_data.tag_content.split("").reverse().join("");
+};
+```
+
+Or you could use the `TinyML.setPreParser` and `TinyML.setPostParser` functions.
+
+```js
+TinyML.setPreParser("rev", function(tag_data)
+{
+    console.log(tag_data);
+	tag_data.tag_content = tag_data.tag_content.split("").reverse().join("");
+});
+```

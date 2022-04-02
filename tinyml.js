@@ -17,8 +17,24 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
+"use strict";
 
 const SPECIAL_CHARS = ['á','é','í','ó','ú','Á','É','Í','Ó','Ú','ñ','Ñ'];
+
+/* https://stackoverflow.com/questions/610406/javascript-equivalent-to-printf-string-format */
+while(!String.prototype.format)
+{
+    String.prototype.format = function()
+    {
+        let args = arguments[0] instanceof Array ? arguments[0] : arguments;
+        
+        return this.replace(/{(\d+)}/g, function(match, number)
+        { 
+            return typeof(args[number]) != 'undefined' ? args[number] : match;
+        });
+    };
+    break;
+}
 
 class Utils
 {
@@ -28,6 +44,11 @@ class Utils
         return a >= b && a <= c;
     }
     */
+    
+    static isSpace(c)
+    {
+        return c === ' ' || c === '\t';
+    }
     
     static escapeHtml(c)
     {
@@ -70,31 +91,64 @@ class Utils
     }
 }
 
+Array.prototype.contains = function(v)
+{
+    for(let i = 0; i < this.length; i++)
+        if(this[i] === v)
+            return true;
+    
+    return false;
+}
+
 class TinyML
 {
     /* SHOULD BE UNMODIFICABLE */
     static STATUS_SUCCESS = 0;
-    static ERROR_INVALID_SOURCE = 1;
+    //static ERROR_INVALID_SOURCE = 1;
     static STATUS_TAG_EXCPECTED = 2;
     static STATUS_SEPARATOR_EXCPECTED = 3;
     static STATUS_VALUE_EXPECTED = 4;
-    static STATUS_EXPECTED_KEY_CLOSURE = 5;
+    //static STATUS_EXPECTED_BRACE_CLOSURE = 5;
     static STATUS_EXPECTED_BRACKET_CLOSURE = 6;
-    static STATUS_BRACKET_OPEN_EXPECTED = 7;
+    //static STATUS_SQUARE_BRACKET_OPEN_EXPECTED = 7;
     static STATUS_INVALID_STRING_LOCATION = 8;
     static STATUS_INVALID_CHARACTER_AT_LOCATION = 9;
     static STATUS_INVALID_ESCAPE_CHARACTER = 10;
     static STATUS_INFINITE_COMMENT_DETECTED = 11;
-    static STATUS_INVALID_KEY_CLOSURE = 12;
-    static STATUS_INVALID_CODE_KEY_CLOSURE = 13;
-    static STATUS_EXPECTED_CODE_KEY_CLOSURE = 14;
-    static TAG_PRE_PARSE = [];
-    static TAG_POST_PARSE = [];
+    static STATUS_INVALID_BRACE_CLOSURE = 12;
+    static STATUS_INVALID_CODE_BRACE_CLOSURE = 13;
+    //static STATUS_EXPECTED_CODE_BRACE_CLOSURE = 14;
+    static STATUS_FINAL_BRACE_CLOSURE_EXPECTED = 15;
+    static STATUS_ENDLESS_ARGUMENTS = 16;
+    static STATUS_EXPECTED_PARENTHESES_CLOSURE = 17;
+    static STATUS_ENDLESS_CODE_SECTION = 18;
+    static STATUS_EXPECTED_CODE_BRACE_FOR_TAG = 19;
+    static PRE_PARSE_FUNCTION_OF = []; /* Pre parser functions */
+    static POST_PARSE_FUNCTION_OF = []; /* Post parser functions */
+    static NEED_CODE_KEY = ["script", "style"];
+    static SHORT_TAGS = ["img", "br", "input", "link", "meta", "area", "source", "base", "col", "option", "embed", "hr", "param", "track"];
+    
+    static setPreParser(tag, f)
+    {
+        if(typeof(tag) === "string" && typeof(f) === "function" && (TinyML.PRE_PARSE_FUNCTION_OF[tag] = f))
+            return true;
+        
+        return false;
+    }
+    
+       static setPostParser(tag, f)
+    {
+        if(typeof(tag) === "string" && typeof(f) === "function" && (TinyML.POST_PARSE_FUNCTION_OF[tag] = f))
+            return true;
+        
+        return false;
+    }
     
     #i = 0;
+    #args;
     
     constructor(source)
-    {
+    {        
         this.source = source;
         this.html = "";
         this.status = TinyML.STATUS_SUCCESS;
@@ -108,24 +162,39 @@ class TinyML
     
     description()
     {
-        switch(this.status)
+        /*
+            { Opening brace
+            } Closing brace
+            [ Opening square bracket
+            ] Closing square bracket
+            ( Opening Parentheses
+            ) Closing Parentheses
+        */
+        function getErrorDescription(status)
         {
-            case TinyML.STATUS_SUCCESS: return "¡Success!";
-            case TinyML.STATUS_TAG_EXCPECTED: return `Tag excepected at ${this.#i+1}`;
-            case TinyML.STATUS_SEPARATOR_EXCPECTED: return `Separator ('[', '{') expected at ${this.#i+1}`;
-            case TinyML.STATUS_VALUE_EXPECTED: return `Value of tag expected at ${this.#i+1}`;
-            case TinyML.STATUS_EXPECTED_KEY_CLOSURE: return `Expected '}' at ${this.#i+1}`;
-            case TinyML.STATUS_INVALID_KEY_CLOSURE: return `Invalid key closure '}' at ${this.#i+1}`;
-            case TinyML.STATUS_INVALID_CODE_KEY_CLOSURE: return `Invalid code key closure '!}' at ${this.#i+1}`;
-            case TinyML.STATUS_EXPECTED_PARENTHESIS_CLOSURE: return `Expected ')' at ${this.#i+1}`;
-            case TinyML.STATUS_BRACKET_OPEN_EXPECTED: return `Expected '['`;
-            case TinyML.STATUS_INVALID_STRING_LOCATION: return `Invalid string at ${this.#i+1}`;
-            case TinyML.STATUS_INVALID_CHARACTER_AT_LOCATION: return `Invalid character at ${this.#i+1}`;
-            case TinyML.STATUS_INVALID_ESCAPE_CHARACTER: return `Invalid escaped character at ${this.#i+1}`;
-            case TinyML.STATUS_INFINITE_COMMENT_DETECTED: return "Endless comment";
-            case TinyML.STATUS_EXPECTED_CODE_KEY_CLOSURE: return `Expected '!}' at ${this.#i+1}`;
-            default: return "Unknown reason O.o";
+            switch(status)
+            {
+                case TinyML.STATUS_SUCCESS: return "¡Success!";
+                case TinyML.STATUS_TAG_EXCPECTED: return `Tag excepected at {0}`;
+                case TinyML.STATUS_SEPARATOR_EXCPECTED: return `Separator ('[', '(', '{') expected at {0}`;
+                case TinyML.STATUS_VALUE_EXPECTED: return `Value of tag '{0}' expected at {1}`;
+                case TinyML.STATUS_FINAL_BRACE_CLOSURE_EXPECTED: return `Final brace closure '}' expected for code of tag '{0}'`;
+                case TinyML.STATUS_INVALID_BRACE_CLOSURE: return `Invalid key closure '}' at {0}`;
+                case TinyML.STATUS_INVALID_CODE_BRACE_CLOSURE: return `Invalid code key closure '!}' at {0}`;
+                case TinyML.STATUS_ENDLESS_ARGUMENTS: return `Endless arguments detected, expected parentheses closure ')' for arguments of tag '{0}'`;
+                case TinyML.STATUS_EXPECTED_PARENTHESES_CLOSURE: return `Expected ')' at {0}`;
+                case TinyML.STATUS_SQUARE_BRACKET_OPEN_EXPECTED: return `Expected '[' at {0}`;
+                case TinyML.STATUS_INVALID_STRING_LOCATION: return `Invalid string at {0}`;
+                case TinyML.STATUS_INVALID_CHARACTER_AT_LOCATION: return `Invalid character at {0}`;
+                case TinyML.STATUS_INVALID_ESCAPE_CHARACTER: return `Invalid escaped character '{0}' at {1}`;
+                case TinyML.STATUS_INFINITE_COMMENT_DETECTED: return "Endless comment";
+                case TinyML.STATUS_ENDLESS_CODE_SECTION: return `Endless code detected, expected code brace closure '!}' for tag '{0}'`;
+                case TinyML.STATUS_EXPECTED_CODE_BRACE_FOR_TAG: return `The tag '{0}' need use code keys ('{!' and '!}')`;
+                default: return "Unknown reason O.o";
+            }
         }
+        
+        return getErrorDescription(this.status).format(this.#args);
     }
     
     #escapeTml(c)
@@ -144,8 +213,9 @@ class TinyML
         }
     }
     
-    #error(status)
+    #error(status, args)
     {
+        this.#args = args;
         return (this.status = status) === TinyML.STATUS_SUCCESS;
     }
 
@@ -160,17 +230,12 @@ class TinyML
         source_length = source.length, ignore = !1,
         code = "", isEscaped = !1, escapedChar, skipChar, parsedResidue,tagContent;
         
-        //console.info(source);
-        //source = source.trim();
         this.actual_code = source;
         
 loop:   for(i = 0; i < source_length; i++)
         {
             let c = source[i];
             this.#i = i;
-    
-            //if(c === undefined)
-            //    break;
     
             switch(c)
             {
@@ -202,7 +267,7 @@ loop:   for(i = 0; i < source_length; i++)
                     }
                     
                     if(cor < 0)
-                        return this.#error(TinyML.STATUS_BRACKET_OPEN_EXPECTED);
+                        return this.#error(TinyML.STATUS_SQUARE_BRACKET_OPEN_EXPECTED, [i]);
                     
                 break;
                 case '!':
@@ -210,13 +275,13 @@ loop:   for(i = 0; i < source_length; i++)
                         break;
                     
                     if(par > 0)
-                        return this.#error(TinyML.STATUS_INVALID_CHARACTER_AT_LOCATION);
+                        return this.#error(TinyML.STATUS_INVALID_CHARACTER_AT_LOCATION, [i]);
                     
                     if(source[i+1] === '}' && (++i))
                         isCode--;
                     
                     if(isCode < 0)
-                        return this.#error(TinyML.STATUS_INVALID_CHARACTER_AT_LOCATION);
+                        return this.#error(TinyML.STATUS_INVALID_CHARACTER_AT_LOCATION, [i]);
                     else if(isCode === 0)
                         break loop;
                         
@@ -228,7 +293,7 @@ loop:   for(i = 0; i < source_length; i++)
                         break;
                 
                     if(par > 0)
-                        return this.#error(TinyML.STATUS_INVALID_CHARACTER_AT_LOCATION);
+                        return this.#error(TinyML.STATUS_INVALID_CHARACTER_AT_LOCATION, [i]);
                     
                     if(lla === 1 && !ignore)
                         c = Utils.escapeHtml(c);
@@ -259,7 +324,7 @@ loop:   for(i = 0; i < source_length; i++)
                         break;
                     
                     if(isOutside)
-                        return this.#error(TinyML.STATUS_INVALID_STRING_LOCATION);
+                        return this.#error(TinyML.STATUS_INVALID_STRING_LOCATION, [i]);
                     
                     isString = !isString;
                     
@@ -283,7 +348,7 @@ loop:   for(i = 0; i < source_length; i++)
                     if(par === 0)
                         c = '';
                     else if(par < 0)
-                        return this.#error(TinyML.STATUS_BRACKET_OPEN_EXPECTED);
+                        return this.#error(TinyML.STATUS_SQUARE_BRACKET_OPEN_EXPECTED, [i]);
                     
                 break;
                 case '{':
@@ -291,7 +356,7 @@ loop:   for(i = 0; i < source_length; i++)
                         break;
                     
                     if(!tag)
-                        return this.#error(TinyML.STATUS_TAG_EXCPECTED);
+                        return this.#error(TinyML.STATUS_TAG_EXCPECTED, [i]);
                     
                     lla++;
                     
@@ -311,7 +376,7 @@ loop:   for(i = 0; i < source_length; i++)
                         else
                             c = '';
                     else if(lla < 0)
-                        return this.#error(TinyML.STATUS_INVALID_KEY_CLOSURE);
+                        return this.#error(TinyML.STATUS_INVALID_BRACE_CLOSURE, [i]);
                     
                 break;
             }
@@ -326,7 +391,7 @@ loop:   for(i = 0; i < source_length; i++)
                 escapedChar = this.#escapeTml(c);
                 
                 if(!escapedChar)
-                    return this.#error(TinyML.STATUS_INVALID_ESCAPE_CHARACTER);
+                    return this.#error(TinyML.STATUS_INVALID_ESCAPE_CHARACTER, [c, i]);
                 
                 tag += escapedChar;
                 isEscaped = false;
@@ -345,15 +410,7 @@ loop:   for(i = 0; i < source_length; i++)
             else
                 content += c;
                 
-            
-            //console.info("tag:", tag, "argument:", argument, "val:", val);
-            //if(val)
-            //    console.info("tag:", tag, "c", c, "i:", i, "isCode:", isCode, "lla:", lla, "par:", par, "argument:", argument, "val:", val);
-            //else
-            //    console.info("tag:", tag, "c", c, "i:", i, "isCode:", isCode, "lla:", lla, "par:", par, "argument:", argument, "code:", code);
         }
-        
-        //console.log("te tagÇ>>>>>>>>>>>>>>>>>>>>", tag);
         
         if(i < source_length)
             residue = source.substring(i+1);
@@ -366,83 +423,96 @@ loop:   for(i = 0; i < source_length; i++)
             tag = "";
         }
         
-        if(lla > 0)
-            return this.#error(TinyML.STATUS_EXPECTED_KEY_CLOSURE);
-        else if(par > 0)
-            return this.#error(TinyML.STATUS_EXPECTED_PARENTHESIS_CLOSURE);
-        else if(cor > 0)
+        if(cor > 0)
             return this.#error(TinyML.STATUS_INFINITE_COMMENT_DETECTED);
-        else if(isCode > 0)
-            return this.#error(TinyML.STATUS_EXPECTED_CODE_KEY_CLOSURE);
-            
         
         if(!tag)
             return content + residue;
         
+        tag = tag.toLowerCase();
+        
+        if(lla > 0)
+            return this.#error(TinyML.STATUS_FINAL_BRACE_CLOSURE_EXPECTED, [tag]);
+        else if(par > 0)
+            return this.#error(TinyML.STATUS_ENDLESS_ARGUMENTS, [tag]);
+        else if(isCode > 0)
+            return this.#error(TinyML.STATUS_ENDLESS_CODE_SECTION, [tag]);
+        
         if((parsedResidue = this.process(residue)) === false)
             return false;
         
-        if(argument)
+        if(argument && !Utils.isSpace(argument[0]))
             argument = ` ${argument}`;
         
+        if(TinyML.NEED_CODE_KEY.contains(tag) && val)
+            return this.#error(TinyML.STATUS_EXPECTED_CODE_BRACE_FOR_TAG, tag);
+        
         tagContent = val || code;
-        let pre_parse_data = [], post_parse_data = [];
+        let parse_data = {content: content, tag: tag, arguments: argument, tag_content: tagContent, residue: parsedResidue, using_code_bracers: code !== ""};
         
-        if(typeof(TinyML.TAG_PRE_PARSE[tag]) === "function")
-            pre_parse_data = TinyML.TAG_PRE_PARSE[tag](content, tag, argument, tagContent, parsedResidue);
-        
-
-        tagContent = pre_parse_data["tag_content"] || tagContent;
-        tag = pre_parse_data["tag"] || tag;
-        argument = pre_parse_data["arguments"] || argument;
-        content = pre_parse_data["content"] || content;
-        parsedResidue = pre_parse_data["residue"] || parsedResidue;
+        if(typeof(TinyML.PRE_PARSE_FUNCTION_OF[tag]) === "function")
+            TinyML.PRE_PARSE_FUNCTION_OF[tag](parse_data);
         
         if(val)
-            tagContent = this.process(tagContent)
+            if((parse_data.tag_content = this.process(parse_data.tag_content)) === false)
+                return false;
         
-        if(typeof(TinyML.TAG_POST_PARSE[tag]) === "function")
-            post_parse_data = TinyML.TAG_POST_PARSE[tag](content, tag, argument, tagContent , parsedResidue);
+        if(typeof(TinyML.POST_PARSE_FUNCTION_OF[tag]) === "function")
+            TinyML.POST_PARSE_FUNCTION_OF[tag](parse_data);
 
-        tagContent = post_parse_data["tag_content"] || tagContent;
-        tag = post_parse_data["tag"] || tag;
-        argument = post_parse_data["arguments"] || argument;
-        content = post_parse_data["content"] || content;
-        parsedResidue = post_parse_data["residue"] || parsedResidue;
-
-        return tagContent === false ? false : `${content}<${tag}${argument}>${tagContent}</${tag}>${parsedResidue}`;
+        if(TinyML.SHORT_TAGS.contains(tag))
+            return `${parse_data.content}<${parse_data.tag}${parse_data.arguments}>${parse_data.residue}`;
+        else
+            return `${parse_data.content}<${parse_data.tag}${parse_data.arguments}>${parse_data.tag_content}</${parse_data.tag}>${parse_data.residue}`;
     }
     
-    parse(source, element)
+    parse(source)
     {
-        if(Utils.isElement(source) && (element = source) && (source = this.source));
+        if((this.html = this.process(source || this.source)) === false)
+            this.html = this.description() + "<br><hr><br>" + this.code();
         
-        let status = (this.html = this.process(source)) !== false;
-        let html = status ? this.html : this.description() + "<br><hr><br>" + this.code();
-        
+        return this;
+    }
+    
+    applyTo(element)
+    {
         if(typeof(element) === "object" && element.innerHTML !== undefined)
-            Utils.setInnerHtml(element, html);
+            Utils.setInnerHtml(element, this.parse(this.source).html);
         
         return this;
     }
 }
 
-TinyML.TAG_POST_PARSE["xhtml"] = function(content, tag, argument, tag_content, end)
+TinyML.POST_PARSE_FUNCTION_OF["xhtml"] = function(data)
 {
-    return {content: `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">\n`, tag: "html"};
+    data.content = `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">\n`;
+    data.tag = "html";
 }
 
-TinyML.TAG_POST_PARSE["html4"] = function(content, tag, argument, tag_content, end)
+TinyML.POST_PARSE_FUNCTION_OF["html4"] = function(data)
 {
-    return {content: `<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">\n`, tag: "html"};
+    data.content = `<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">\n`;
+    data.tag = "html";
 }
 
-TinyML.TAG_POST_PARSE["html5"] = function(content, tag, argument, tag_content, end)
+TinyML.POST_PARSE_FUNCTION_OF["html5"] = function(data)
 {
-    return {content: "<!DOCTYPE html>\n", tag: "html"};
+    data.content = "<!DOCTYPE html>\n";
+    data.tag = "html";
 }
 
-String.prototype.tinyML = function(element)
+String.prototype.tinyML = function()
 {
     return new TinyML(this + "");
+}
+
+if(typeof(jQuery) !== "undefined")
+{
+    jQuery.fn.applyTinyML() = function(source)
+    {
+        if(typeof(source) === "string")
+            source.tinyML().applyTo(this);
+        
+        return this;
+    }
 }
