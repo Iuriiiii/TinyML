@@ -30,7 +30,7 @@ window.onload = function()
                 Some content
             }
         }
-    }`.tinyML().parse(body());
+    }`.tinyML().applyTo(body());
 }
 ```
 

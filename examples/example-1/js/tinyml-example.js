@@ -15,16 +15,7 @@ function readfile(file)
         {
             if(rawFile.status === 200 || rawFile.status == 0)
             {
-                var allText = rawFile.responseText;
-                
-                let tml = new TinyML(allText);
-                
-                if(tml.parse())
-                    document.documentElement.innerHTML = tml.html_source;
-                else
-                    document.documentElement.innerHTML = tml.description() + "<br>" + tml.code();
-                
-                body().innerHTML = tml.html_source;
+                rawFile.responseText.tinyML().applyTo(body());
             }
         }
     }
