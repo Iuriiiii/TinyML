@@ -1,0 +1,36 @@
+{
+  "name": "tinyml",
+  "version": "1.0.3",
+  "description": "Tiny Markup Language",
+  "main": "index.js",
+  "scripts": {
+    "build:common": "tsc --project tsconfig.common.json",
+    "build": "npm run build:common && tsc --project tsconfig.json",
+    "dev": "tsc-watch ./index.ts -outDir ./ --onSuccess \"node ./index.js\"",
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Iuriiiii/TinyML.git"
+  },
+  "keywords": [],
+  "author": "Iuriiiii",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Iuriiiii/TinyML/issues"
+  },
+  "homepage": "https://github.com/Iuriiiii/TinyML#readme",
+  "devDependencies": {
+    "@types/jest": "^29.1.2",
+    "jest": "^29.2.0",
+    "nodemon": "^2.0.20",
+    "ts-jest": "^29.0.3",
+    "ts-node": "^10.9.1",
+    "ts-node-dev": "^2.0.0",
+    "tsc-watch": "^5.0.3",
+    "typescript": "^4.8.4"
+  },
+  "dependencies": {
+    "tinyml-core": "^2.0.10"
+  }
+}
