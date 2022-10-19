@@ -1,5 +1,8 @@
 export declare namespace TinyML {
-    function translate(source: string): string;
-    function t(textParts: any, ...expressions: any): string;
+    interface TranslateOptions {
+        preserveComments: boolean;
+    }
+    export function translate(source: string, options?: TranslateOptions): string;
+    export function t(textParts: any, ...expressions: any): string;
+    export {};
 }
-//# sourceMappingURL=index.d.ts.map

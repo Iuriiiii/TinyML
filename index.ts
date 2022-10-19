@@ -25,7 +25,16 @@ SOFTWARE.
 import { Core } from 'tinyml-core/common';
 
 export namespace TinyML {
-    function translateBinaryArray(elements: Core.Item[]): string {
+    interface TranslateOptions {
+        preserveComments: boolean
+    }
+
+    const escapeHtml = (unsafe: string): string => {
+        /* @ts-ignore */
+        return unsafe.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;');
+    }
+
+    function translateBinaryArray(elements: Core.Item[], options: TranslateOptions): string {
         let html = '';
 
         for (let i = 0; i < elements.length; i++) {
@@ -38,22 +47,23 @@ export namespace TinyML {
                     if (e.children === undefined)
                         html += `<${e.tag.text}${params}/>`;
                     else
-                        html += `<${e.tag.text}${params}>` + translateBinaryArray(e.children) + `</${e.tag.text}>`;
-                    // console.log(e);
-
+                        html += `<${e.tag.text}${params}>` + translateBinaryArray(e.children, options) + `</${e.tag.text}>`;
                     break;
-                case element.isRaw():
-                    html += element.toString();
+                case element.isComment() && options.preserveComments:
+                    html += `<!--${element.toString()}-->`;
+                    break;
+                default:
+                    html += element.isRaw() ? escapeHtml(element.toString()) : element.toString()
             }
         }
 
         return html;
     }
 
-    export function translate(source: string): string {
+    export function translate(source: string, options: TranslateOptions = { preserveComments: true }): string {
         let elements = Core.parse(source);
 
-        return translateBinaryArray(elements);
+        return translateBinaryArray(elements, options);
     }
 
     export function t(textParts: any, ...expressions: any) {
